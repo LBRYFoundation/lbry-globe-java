@@ -1,6 +1,7 @@
 package com.lbry.globe.handler;
 
 import com.lbry.globe.api.API;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -8,10 +9,10 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.http.*;
 import io.netty.util.AttributeKey;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import java.net.URI;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.*;
 
 
@@ -53,7 +54,7 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
                 int status = 200;
                 byte[] indexData;
                 try{
-                    indexData = Files.readAllBytes(Paths.get(HTTPHandler.getResource("index.html").toURI()));
+                    indexData = HTTPHandler.readResource(HTTPHandler.getResource("index.html"));
                 }catch(Exception ignored){
                     status = 500;
                     indexData = "Some error occured.".getBytes();
@@ -79,7 +80,7 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
             }
             byte[] fileData = null;
             try{
-                fileData = Files.readAllBytes(Paths.get(HTTPHandler.getResource(uri.getPath().substring(1)).toURI()));
+                fileData = HTTPHandler.readResource(HTTPHandler.getResource(uri.getPath().substring(1)));
             }catch(Exception ignored){
             }
             boolean ok = fileData!=null;
@@ -121,8 +122,18 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
         ctx.close();
     }
 
-    private static URL getResource(String name){
-        return HTTPHandler.class.getClassLoader().getResource(name);
+    private static byte[] readResource(InputStream in) throws IOException{
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        int nRead;
+        byte[] data = new byte[16384];
+        while ((nRead = in.read(data, 0, data.length)) != -1) {
+            buffer.write(data, 0, nRead);
+        }
+        return buffer.toByteArray();
+    }
+
+    private static InputStream getResource(String name){
+        return HTTPHandler.class.getClassLoader().getResourceAsStream(name);
     }
 
 }

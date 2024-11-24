@@ -9,5 +9,5 @@ WORKDIR /opt/lbry/globe/
 EXPOSE 25/tcp
 EXPOSE 465/tcp
 EXPOSE 587/tcp
-COPY --from=build /tmp/target/lbry-globe-latest-jar-with-dependencies.jar ./lbry-globe.jar
+COPY --from=build /tmp/target/lbry-globe-*-jar-with-dependencies.jar ./lbry-globe.jar
 CMD ["java","-jar","lbry-globe.jar"]
