@@ -10,7 +10,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
-import java.net.URL;
+import java.net.URI;
 import java.util.*;
 
 import org.json.JSONArray;
@@ -22,7 +22,7 @@ public class BlockchainNodeFinderThread implements Runnable{
     public void run() {
         while(true){
             try{
-                HttpURLConnection conn = (HttpURLConnection) new URL(System.getenv("BLOCKCHAIN_RPC_URL")).openConnection();
+                HttpURLConnection conn = (HttpURLConnection) new URI(System.getenv("BLOCKCHAIN_RPC_URL")).toURL().openConnection();
                 conn.setDoOutput(true);
                 conn.addRequestProperty("Authorization","Basic "+ Base64.getEncoder().encodeToString((System.getenv("BLOCKCHAIN_USERNAME")+":"+System.getenv("BLOCKCHAIN_PASSWORD")).getBytes()));
                 conn.connect();

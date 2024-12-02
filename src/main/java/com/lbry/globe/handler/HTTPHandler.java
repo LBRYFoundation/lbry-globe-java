@@ -14,6 +14,8 @@ import java.io.InputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 import org.json.JSONArray;
@@ -23,17 +25,16 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
 
     public static final AttributeKey<HttpRequest> ATTR_REQUEST = AttributeKey.newInstance("request");
     public static final AttributeKey<List<HttpContent>> ATTR_CONTENT = AttributeKey.newInstance("content");
+    private static final Logger LOGGER = Logger.getLogger("Handler");
 
     @Override
     public void channelRead(ChannelHandlerContext ctx,Object msg){
         if(msg instanceof HttpRequest){
-            HttpRequest request = (HttpRequest) msg;
-            ctx.channel().attr(HTTPHandler.ATTR_REQUEST).set(request);
+            ctx.channel().attr(HTTPHandler.ATTR_REQUEST).set((HttpRequest) msg);
         }
         if(msg instanceof HttpContent){
-            HttpContent content = (HttpContent) msg;
             ctx.channel().attr(HTTPHandler.ATTR_CONTENT).setIfAbsent(new ArrayList<>());
-            ctx.channel().attr(HTTPHandler.ATTR_CONTENT).get().add(content);
+            ctx.channel().attr(HTTPHandler.ATTR_CONTENT).get().add((HttpContent) msg);
 
             if(msg instanceof LastHttpContent){
                 this.handleResponse(ctx);
@@ -46,6 +47,8 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
         List<HttpContent> content = ctx.channel().attr(HTTPHandler.ATTR_CONTENT).get();
         ctx.channel().attr(HTTPHandler.ATTR_REQUEST).set(null);
         ctx.channel().attr(HTTPHandler.ATTR_CONTENT).set(null);
+
+        assert content!=null;
 
         if(request.method().equals(HttpMethod.GET)){
             URI uri = URI.create(request.uri());
@@ -117,8 +120,8 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        cause.printStackTrace(); //TODO
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause){
+        HTTPHandler.LOGGER.log(Level.WARNING,"Exception during HTTP handling",cause);
         ctx.close();
     }
 

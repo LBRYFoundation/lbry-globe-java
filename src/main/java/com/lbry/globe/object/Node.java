@@ -9,7 +9,7 @@ public class Node{
     private final InetAddress address;
     private Double latitude;
     private Double longitude;
-    private List<Service> services = new ArrayList<>();
+    private final List<Service> services = new ArrayList<>();
 
     public Node(InetAddress address,Double latitude,Double longitude){
         this.address = address;
@@ -25,8 +25,16 @@ public class Node{
         return this.latitude;
     }
 
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
     public Double getLongitude() {
         return this.longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
     }
 
     public List<Service> getServices(){

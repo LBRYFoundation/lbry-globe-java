@@ -1,18 +1,19 @@
 package com.lbry.globe.util;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.URL;
+import java.net.*;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.json.JSONObject;
 
 public class GeoIP{
 
     private static final Map<InetAddress,JSONObject> CACHE = new TreeMap<>(Comparator.comparing(InetAddress::getHostAddress));
+    private static final Logger LOGGER = Logger.getLogger("GeoIP");
     private static final String TOKEN = System.getenv("IPINFO_TOKEN");
 
     public static JSONObject getCachedGeoIPInformation(InetAddress ip){
@@ -23,14 +24,14 @@ public class GeoIP{
                 GeoIP.CACHE.put(ip,result);
                 GeoIP.saveCache();
             }catch(Exception e){
-                e.printStackTrace();
+                GeoIP.LOGGER.log(Level.WARNING,"Failed getting cached GeoIP information.",e);
             }
         }
         return result;
     }
 
-    public static JSONObject getGeoIPInformation(InetAddress ip) throws IOException{
-        HttpURLConnection conn = (HttpURLConnection) new URL("https://ipinfo.io/"+ip.getHostAddress()+"?token="+GeoIP.TOKEN).openConnection();
+    public static JSONObject getGeoIPInformation(InetAddress ip) throws IOException,URISyntaxException{
+        HttpURLConnection conn = (HttpURLConnection) new URI("https://ipinfo.io/"+ip.getHostAddress()+"?token="+GeoIP.TOKEN).toURL().openConnection();
         conn.connect();
         InputStream in = conn.getInputStream();
         if(in==null){
@@ -68,7 +69,7 @@ public class GeoIP{
             }
             br.close();
         }catch(Exception e){
-            e.printStackTrace();
+            GeoIP.LOGGER.log(Level.WARNING,"Failed loading GeoIP cache.",e);
         }
     }
 
@@ -82,7 +83,7 @@ public class GeoIP{
             fos.write(obj.toString().getBytes());
             fos.close();
         }catch(Exception e){
-            e.printStackTrace();
+            GeoIP.LOGGER.log(Level.WARNING,"Failed saving GeoIP cache.",e);
         }
     }
 
