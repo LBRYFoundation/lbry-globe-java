@@ -43,6 +43,11 @@
 <script>
 const globe = Globe();
 
+window.addEventListener('resize',function(event){
+    globe.height(event.target.innerHeight);
+    globe.width(event.target.innerWidth);
+});
+
 globe(document.getElementById('globe'));
 
 globe.backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png');
