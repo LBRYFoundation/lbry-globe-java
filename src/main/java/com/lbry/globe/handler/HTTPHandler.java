@@ -1,5 +1,6 @@
 package com.lbry.globe.handler;
 
+import com.lbry.globe.Main;
 import com.lbry.globe.api.API;
 
 import io.netty.buffer.ByteBuf;
@@ -62,6 +63,7 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
                     status = 500;
                     indexData = "Some error occured.".getBytes();
                 }
+                indexData = new String(indexData).replace("<div class=\"version\"></div>","<div class=\"version\">"+Main.class.getPackage().getImplementationVersion()+"</div>").getBytes();
                 ByteBuf responseContent = Unpooled.copiedBuffer(indexData);
                 FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(),HttpResponseStatus.valueOf(status),responseContent);
                 response.headers().add("Content-Length",responseContent.capacity());
