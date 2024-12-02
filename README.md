@@ -1,5 +1,6 @@
 # LBRY Globe
 
+[![Codecov](https://codecov.io/gh/LBRYFoundation/lbry-globe-java/graph/badge.svg)](https://codecov.io/gh/LBRYFoundation/lbry-globe-java)
 [![Docker Image CI](https://github.com/LBRYFoundation/lbry-globe-java/actions/workflows/docker-image.yml/badge.svg)](https://github.com/LBRYFoundation/lbry-globe-java/actions/workflows/docker-image.yml)
 [![Java CI with Maven](https://github.com/LBRYFoundation/lbry-globe-java/actions/workflows/maven.yml/badge.svg)](https://github.com/LBRYFoundation/lbry-globe-java/actions/workflows/maven.yml)
 
