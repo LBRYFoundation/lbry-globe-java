@@ -78,7 +78,16 @@ public class HubNodeFinderThread implements Runnable{
                 }
             }
             for(InetAddress removeIP : removeIPs){
-                HubNodeFinderThread.LAST_SEEN.remove(removeIP);
+                boolean isBootstrap = false;
+                for(String bootstrap : HubNodeFinderThread.HUBS){
+                    if(bootstrap.equalsIgnoreCase(removeIP.getHostName())){
+                        isBootstrap = true;
+                        break;
+                    }
+                }
+                if(!isBootstrap){
+                    HubNodeFinderThread.LAST_SEEN.remove(removeIP);
+                }
                 Node n = API.NODES.get(removeIP);
                 if(n!=null){
                     List<Service> removeServices = new ArrayList<>();
