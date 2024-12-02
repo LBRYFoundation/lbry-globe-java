@@ -41,7 +41,7 @@
     <div id="info-nodes-total"></div>
 </div>
 <div class="version"></div>
-<script>
+<script type="text/javascript">
 const globe = Globe();
 
 window.addEventListener('resize',function(event){
@@ -90,6 +90,10 @@ globe.pointAltitude(point => POINT_ALTITUDE[point.type]);
 globe.pointColor(point => POINT_COLOR[point.type]);
 globe.pointLabel(point => point.label);
 globe.pointRadius(point => POINT_RADIUS[point.type]);
+
+globe.onPointClick(point => {
+    console.log(point);
+});
 
 globe.onZoom((x) => {globe.controls().zoomSpeed = 2;});
 
