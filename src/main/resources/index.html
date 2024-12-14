@@ -27,6 +27,12 @@
             top:0;
             z-index:100;
         }
+        .info-row span{
+            float:right;
+        }
+        .info-row span::before{
+            content:'\00A0';
+        }
         .info hr{
             border-color: #27E4EB;
         }
@@ -51,11 +57,23 @@
 <body>
 <div id="globe"></div>
 <div class="info">
-    <div id="info-nodes-blockchain"></div>
-    <div id="info-nodes-dht"></div>
-    <div id="info-nodes-hub"></div>
+    <div class="info-row">
+        <b>Blockchain Nodes:</b>
+        <span id="count-nodes-blockchain">?</span>
+    </div>
+    <div class="info-row">
+        <b>DHT Nodes:</b>
+        <span id="count-nodes-dht">?</span>
+    </div>
+    <div class="info-row">
+        <b>Hub Nodes:</b>
+        <span id="count-nodes-hub">?</span>
+    </div>
     <hr>
-    <div id="info-nodes-total"></div>
+    <div class="info-row">
+        <b>Total Nodes:</b>
+        <span id="count-nodes-total">?</span>
+    </div>
 </div>
 <div class="logo">
     <img alt="LBRY Foundation" src="https://lbry.org/logo-vertical.svg">
@@ -163,10 +181,10 @@ function updatePointsData(points){
             hubCount++;
         }
     }
-    document.getElementById('info-nodes-blockchain').innerHTML = '<b>Blockchain Nodes:</b> '+blockchainCount;
-    document.getElementById('info-nodes-dht').innerHTML = '<b>DHT Nodes:</b> '+dhtCount;
-    document.getElementById('info-nodes-hub').innerHTML = '<b>Hub Nodes:</b> '+hubCount;
-    document.getElementById('info-nodes-total').innerHTML = '<b>Total Nodes:</b> '+newPointsData.length;
+    document.getElementById('count-nodes-blockchain').textContent = blockchainCount;
+    document.getElementById('count-nodes-dht').textContent = dhtCount;
+    document.getElementById('count-nodes-hub').textContent = hubCount;
+    document.getElementById('count-nodes-total').textContent = newPointsData.length;
 
     globe.pointsData(shuffleArray(newPointsData));
 }
