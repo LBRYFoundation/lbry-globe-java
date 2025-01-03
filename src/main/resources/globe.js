@@ -1,7 +1,11 @@
 const globe = Globe();
 
+var container = null;
+
 window.addEventListener('load',function(){
-    globe(document.getElementById('globe'));
+    container = document.getElementById('globe');
+
+    globe(container);
 });
 
 window.addEventListener('resize',function(event){
