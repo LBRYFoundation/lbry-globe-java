@@ -3,17 +3,24 @@ package com.lbry.globe.api;
 import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
 
+import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
+import com.lbry.globe.util.GeoIP;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 public class API{
 
+    private static final Logger LOGGER = Logger.getLogger("API");
     public static final Map<InetAddress, Node> NODES = new TreeMap<>(Comparator.comparing(InetAddress::getHostAddress));
 
     public static void fillPoints(JSONArray points){
@@ -32,6 +39,38 @@ public class API{
                 obj.put("type",service.getType());
                 points.put(obj);
             }
+        }
+    }
+
+    public static void loadNodes(){
+        try{
+            BufferedReader br = new BufferedReader(new FileReader("nodes.json"));
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while((line = br.readLine())!=null){
+                sb.append(line);
+            }
+            JSONObject obj = new JSONObject(sb.toString());
+            for(String key : obj.keySet()){
+                API.NODES.put(InetAddress.getByName(key),Node.fromJSONObject(obj.getJSONObject(key)));
+            }
+            br.close();
+        }catch(Exception e){
+            API.LOGGER.log(Level.WARNING,"Failed loading nodes.",e);
+        }
+    }
+
+    public static void saveNodes(){
+        try{
+            FileOutputStream fos = new FileOutputStream("nodes.json");
+            JSONObject obj = new JSONObject();
+            for(Map.Entry<InetAddress,Node> entry : API.NODES.entrySet()){
+                obj.put(entry.getKey().getHostAddress(),entry.getValue().toJSONObject());
+            }
+            fos.write(obj.toString().getBytes());
+            fos.close();
+        }catch(Exception e){
+            API.LOGGER.log(Level.WARNING,"Failed saving nodes.",e);
         }
     }
 

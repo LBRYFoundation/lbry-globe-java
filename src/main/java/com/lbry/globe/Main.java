@@ -1,5 +1,6 @@
 package com.lbry.globe;
 
+import com.lbry.globe.api.API;
 import com.lbry.globe.handler.HTTPHandler;
 import com.lbry.globe.logging.LogLevel;
 import com.lbry.globe.thread.BlockchainNodeFinderThread;
@@ -56,6 +57,9 @@ public class Main implements Runnable{
     }
 
     public static void main(String... args){
+        Main.LOGGER.info("Loading nodes cache");
+        Runtime.getRuntime().addShutdownHook(new Thread(API::saveNodes));
+        API.loadNodes();
         Main.LOGGER.info("Loading GeoIP cache");
         Runtime.getRuntime().addShutdownHook(new Thread(GeoIP::saveCache));
         GeoIP.loadCache();

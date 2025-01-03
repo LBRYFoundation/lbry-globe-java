@@ -147,6 +147,7 @@ public class DHTNodeFinderThread implements Runnable{
                 }
             }
 
+            API.saveNodes();
             //TODO: REMOVE MARKED AS DELETED
 
             System.out.println("----");

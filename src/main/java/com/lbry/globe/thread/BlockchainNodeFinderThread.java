@@ -106,6 +106,7 @@ public class BlockchainNodeFinderThread implements Runnable{
             }
             n.getServices().removeAll(removedService);
         }
+        API.saveNodes();
     }
 
 }

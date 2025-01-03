@@ -122,6 +122,8 @@ public class HubNodeFinderThread implements Runnable{
                 }
             }
 
+            API.saveNodes();
+
             try {
                 Thread.sleep(10_000);
             } catch (InterruptedException e) {
