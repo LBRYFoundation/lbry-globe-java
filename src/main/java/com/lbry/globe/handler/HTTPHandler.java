@@ -18,7 +18,6 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -91,14 +90,17 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
             boolean ok = fileData!=null;
 
             String contentType = null;
-            if("/earth.jpg".equals(uri.getPath())){
-                contentType = "image/jpg";
-            }
             if("/earth.png".equals(uri.getPath())){
                 contentType = "image/png";
             }
             if("/favicon.ico".equals(uri.getPath())){
                 contentType = "image/vnd.microsoft.icon";
+            }
+            if("/globe.css".equals(uri.getPath())){
+                contentType = "text/css";
+            }
+            if("/globe.js".equals(uri.getPath())){
+                contentType = "text/javascript";
             }
 
             ByteBuf responseContent = ok?Unpooled.copiedBuffer(fileData):Unpooled.copiedBuffer("File not found.\r\n".getBytes());

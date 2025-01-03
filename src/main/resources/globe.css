@@ -1,0 +1,41 @@
+body{
+    background:black;
+    font-family:Arial,sans-serif;
+    margin: 0;
+}
+.info{
+    background:#041523;
+    border:2px solid #27E4EB;
+    border-radius:8px;
+    color:white;
+    padding:8px;
+    position:absolute;
+    left:0;
+    margin:16px;
+    top:0;
+    z-index:100;
+}
+.info-row span{
+    float:right;
+}
+.info-row span::before{
+    content:'\00A0';
+}
+.info hr{
+    border-color: #27E4EB;
+}
+.logo{
+    bottom:40px;
+    left:40px;
+    position:absolute;
+}
+.logo img{
+    height:80px;
+}
+.version{
+    bottom:0;
+    color:white;
+    padding:8px;
+    position:absolute;
+    left:0;
+}

@@ -14,7 +14,6 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import com.lbry.globe.util.GeoIP;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
