@@ -14,7 +14,7 @@ public class GeoIP{
 
     private static final Map<InetAddress,JSONObject> CACHE = new TreeMap<>(Comparator.comparing(InetAddress::getHostAddress));
     private static final Logger LOGGER = Logger.getLogger("GeoIP");
-    private static final String TOKEN = System.getenv("IPINFO_TOKEN");
+    private static final String TOKEN = Environment.getVariable("IPINFO_TOKEN");
 
     public static JSONObject getCachedGeoIPInformation(InetAddress ip){
         JSONObject result = CACHE.get(ip);
@@ -33,7 +33,12 @@ public class GeoIP{
     public static JSONObject getGeoIPInformation(InetAddress ip) throws IOException,URISyntaxException{
         HttpURLConnection conn = (HttpURLConnection) new URI("https://ipinfo.io/"+ip.getHostAddress()+"?token="+GeoIP.TOKEN).toURL().openConnection();
         conn.connect();
-        InputStream in = conn.getInputStream();
+        InputStream in = null;
+        try{
+            in = conn.getInputStream();
+        }catch(Exception e){
+            GeoIP.LOGGER.log(Level.WARNING,"GeoIP service returned status code '"+conn.getResponseCode()+"'.");
+        }
         if(in==null){
             in = conn.getErrorStream();
         }
@@ -56,20 +61,23 @@ public class GeoIP{
     }
 
     public static void loadCache(){
-        try{
-            BufferedReader br = new BufferedReader(new FileReader("geoip.json"));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while((line = br.readLine())!=null){
-                sb.append(line);
+        File file = new File("geoip.json");
+        if(file.exists()){
+            try{
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while((line = br.readLine())!=null){
+                    sb.append(line);
+                }
+                JSONObject obj = new JSONObject(sb.toString());
+                for(String key : obj.keySet()){
+                    GeoIP.CACHE.put(InetAddress.getByName(key),obj.getJSONObject(key));
+                }
+                br.close();
+            }catch(Exception e){
+                GeoIP.LOGGER.log(Level.WARNING,"Failed loading GeoIP cache.",e);
             }
-            JSONObject obj = new JSONObject(sb.toString());
-            for(String key : obj.keySet()){
-                GeoIP.CACHE.put(InetAddress.getByName(key),obj.getJSONObject(key));
-            }
-            br.close();
-        }catch(Exception e){
-            GeoIP.LOGGER.log(Level.WARNING,"Failed loading GeoIP cache.",e);
         }
     }
 

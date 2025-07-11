@@ -3,6 +3,7 @@ package com.lbry.globe.thread;
 import com.lbry.globe.api.API;
 import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
+import com.lbry.globe.util.Environment;
 import com.lbry.globe.util.GeoIP;
 
 import java.io.BufferedReader;
@@ -19,33 +20,36 @@ import org.json.JSONObject;
 public class BlockchainNodeFinderThread implements Runnable{
 
     @Override
-    public void run() {
-        while(true){
-            try{
-                HttpURLConnection conn = (HttpURLConnection) new URI(System.getenv("BLOCKCHAIN_RPC_URL")).toURL().openConnection();
-                conn.setDoOutput(true);
-                conn.addRequestProperty("Authorization","Basic "+ Base64.getEncoder().encodeToString((System.getenv("BLOCKCHAIN_USERNAME")+":"+System.getenv("BLOCKCHAIN_PASSWORD")).getBytes()));
-                conn.connect();
-                conn.getOutputStream().write(new JSONObject().put("id",new Random().nextInt()).put("method","getnodeaddresses").put("params",new JSONArray().put(2147483647)).toString().getBytes());
-                InputStream in = conn.getInputStream();
-                if(in==null){
-                    in = conn.getErrorStream();
+    public void run(){
+        String rpcURL = Environment.getVariable("BLOCKCHAIN_RPC_URL");
+        if(rpcURL!=null){
+            while(true){
+                try{
+                    HttpURLConnection conn = (HttpURLConnection) new URI(rpcURL).toURL().openConnection();
+                    conn.setDoOutput(true);
+                    conn.addRequestProperty("Authorization","Basic "+ Base64.getEncoder().encodeToString((Environment.getVariable("BLOCKCHAIN_USERNAME")+":"+Environment.getVariable("BLOCKCHAIN_PASSWORD")).getBytes()));
+                    conn.connect();
+                    conn.getOutputStream().write(new JSONObject().put("id",new Random().nextInt()).put("method","getnodeaddresses").put("params",new JSONArray().put(2147483647)).toString().getBytes());
+                    InputStream in = conn.getInputStream();
+                    if(in==null){
+                        in = conn.getErrorStream();
+                    }
+                    BufferedReader br = new BufferedReader(new InputStreamReader(in));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while((line = br.readLine())!=null){
+                        sb.append(line);
+                    }
+                    JSONObject json = new JSONObject(sb.toString());
+                    manageBlockchainNodes(json.getJSONArray("result"));
+                }catch(Exception e){
+                    e.printStackTrace();
                 }
-                BufferedReader br = new BufferedReader(new InputStreamReader(in));
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while((line = br.readLine())!=null){
-                    sb.append(line);
+                try {
+                    Thread.sleep(10_000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
                 }
-                JSONObject json = new JSONObject(sb.toString());
-                manageBlockchainNodes(json.getJSONArray("result"));
-            }catch(Exception e){
-                e.printStackTrace();
-            }
-            try {
-                Thread.sleep(10_000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
             }
         }
     }

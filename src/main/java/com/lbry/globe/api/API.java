@@ -4,6 +4,7 @@ import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.net.Inet6Address;
@@ -42,20 +43,23 @@ public class API{
     }
 
     public static void loadNodes(){
-        try{
-            BufferedReader br = new BufferedReader(new FileReader("nodes.json"));
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while((line = br.readLine())!=null){
-                sb.append(line);
+        File file = new File("nodes.json");
+        if(file.exists()){
+            try{
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while((line = br.readLine())!=null){
+                    sb.append(line);
+                }
+                JSONObject obj = new JSONObject(sb.toString());
+                for(String key : obj.keySet()){
+                    API.NODES.put(InetAddress.getByName(key),Node.fromJSONObject(obj.getJSONObject(key)));
+                }
+                br.close();
+            }catch(Exception e){
+                API.LOGGER.log(Level.WARNING,"Failed loading nodes.",e);
             }
-            JSONObject obj = new JSONObject(sb.toString());
-            for(String key : obj.keySet()){
-                API.NODES.put(InetAddress.getByName(key),Node.fromJSONObject(obj.getJSONObject(key)));
-            }
-            br.close();
-        }catch(Exception e){
-            API.LOGGER.log(Level.WARNING,"Failed loading nodes.",e);
         }
     }
 
