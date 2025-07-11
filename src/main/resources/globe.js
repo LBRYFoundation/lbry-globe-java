@@ -42,6 +42,10 @@ const POINT_COLOR = {
     hub: '#FF0000',
 };
 
+const POINT_TTL = {
+    blockchain: 60,
+};
+
 const POINT_RADIUS = {
     blockchain: 0.125,
     dht: 0.1,
@@ -51,8 +55,9 @@ const POINT_RADIUS = {
 globe.pointAltitude(point => POINT_ALTITUDE[point.type]);
 globe.pointColor(function(point){
     var color = POINT_COLOR[point.type];
-    if(point.ttl!==undefined){
-        color += Math.round(point.ttl/300*256).toString(16).padStart(2,'0');
+    var ttl = POINT_TTL[point.type];
+    if(point.notSeenTime!==undefined && ttl!==undefined){
+        color += (point.notSeenTime/ttl*255).toString(16).padStart(2,'0');
     }
     return color;
 });
