@@ -49,7 +49,13 @@ const POINT_RADIUS = {
 };
 
 globe.pointAltitude(point => POINT_ALTITUDE[point.type]);
-globe.pointColor(point => POINT_COLOR[point.type]);
+globe.pointColor(function(point){
+    var color = POINT_COLOR[point.type];
+    if(point.ttl!==undefined){
+        color += Math.round(point.ttl/300*256).toString(16).padStart(2,'0');
+    }
+    return color;
+});
 globe.pointLabel(point => point.label);
 globe.pointRadius(point => POINT_RADIUS[point.type]);
 
@@ -117,10 +123,10 @@ function updateGlobe(){
     fetch('/api')
         .then(resp => resp.json())
         .then(json => {
-        data = json;
-        updatePointsData(json.points);
-        globe.arcsData(json.arcs);
-    });
+            data = json;
+            updatePointsData(json.points);
+            globe.arcsData(json.arcs);
+        });
 }
 
 setInterval(updateGlobe,1_000);

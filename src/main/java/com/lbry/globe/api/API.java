@@ -37,6 +37,11 @@ public class API{
                 obj.put("lat",node.getLatitude());
                 obj.put("lng",node.getLongitude());
                 obj.put("type",service.getType());
+                long ttl = (300_000-(System.currentTimeMillis()-service.getLastSeen()));
+                if(ttl<0){
+                    ttl = 0;
+                }
+                obj.put("ttl",ttl/1000);
                 points.put(obj);
             }
         }
