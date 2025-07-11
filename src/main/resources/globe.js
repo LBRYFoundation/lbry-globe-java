@@ -57,7 +57,8 @@ globe.pointColor(function(point){
     var color = POINT_COLOR[point.type];
     var ttl = POINT_TTL[point.type];
     if(point.notSeenTime!==undefined && ttl!==undefined){
-        color += (point.notSeenTime/ttl*255).toString(16).padStart(2,'0');
+        var notSeenSeconds = point.notSeenTime/1000;
+        color += (255-Math.round(notSeenSeconds/ttl*255)).toString(16).padStart(2,'0');
     }
     return color;
 });
