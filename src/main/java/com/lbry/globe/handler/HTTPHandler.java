@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.net.URI;
+import java.security.MessageDigest;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -26,6 +27,8 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
     public static final AttributeKey<HttpRequest> ATTR_REQUEST = AttributeKey.newInstance("request");
     public static final AttributeKey<List<HttpContent>> ATTR_CONTENT = AttributeKey.newInstance("content");
     private static final Logger LOGGER = Logger.getLogger("Handler");
+
+    private static byte[] jsHash;
 
     @Override
     public void channelRead(ChannelHandlerContext ctx,Object msg){
@@ -62,7 +65,7 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
                     status = 500;
                     indexData = "Some error occured.".getBytes();
                 }
-                indexData = new String(indexData).replace("<div class=\"version\"></div>","<div class=\"version\">"+Main.class.getPackage().getImplementationVersion()+"</div>").getBytes();
+                indexData = new String(indexData).replace("${GLOBE_JS_VERSION}",Base64.getEncoder().encodeToString(HTTPHandler.getJSHash()).replaceAll("=","")).replace("<div class=\"version\"></div>","<div class=\"version\">"+Main.class.getPackage().getImplementationVersion()+"</div>").getBytes();
                 ByteBuf responseContent = Unpooled.copiedBuffer(indexData);
                 FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(),HttpResponseStatus.valueOf(status),responseContent);
                 response.headers().add("Content-Length",responseContent.capacity());
@@ -141,6 +144,16 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
 
     private static InputStream getResource(String name){
         return HTTPHandler.class.getClassLoader().getResourceAsStream(name);
+    }
+
+    private static byte[] getJSHash(){
+        if(HTTPHandler.jsHash==null){
+            try{
+                MessageDigest md = MessageDigest.getInstance("SHA-1");
+                HTTPHandler.jsHash = md.digest(HTTPHandler.readResource(HTTPHandler.getResource("globe.js")));
+            }catch(Exception ignored){}
+        }
+        return HTTPHandler.jsHash;
     }
 
 }
