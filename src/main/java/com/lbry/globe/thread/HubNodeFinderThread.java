@@ -103,7 +103,7 @@ public class HubNodeFinderThread implements Runnable{
                 Node existingNode = API.NODES.get(entry.getKey());
                 if(existingNode==null){
                     JSONObject geoData = GeoIP.getCachedGeoIPInformation(entry.getKey());
-                    Double[] coords = GeoIP.getCoordinateFromLocation(geoData.has("loc")?geoData.getString("loc"):null);
+                    Double[] coords = GeoIP.getCoordinateFromLocation((geoData!=null && geoData.has("loc"))?geoData.getString("loc"):null);
                     existingNode = new Node(entry.getKey(),coords[0],coords[1]);
                     API.NODES.put(entry.getKey(),existingNode);
                 }

@@ -77,7 +77,7 @@ public class BlockchainNodeFinderThread implements Runnable{
             Node existingNode = API.NODES.get(node.getKey());
             if(existingNode==null){
                 JSONObject geoData = GeoIP.getCachedGeoIPInformation(node.getKey());
-                Double[] coords = GeoIP.getCoordinateFromLocation(geoData.has("loc")?geoData.getString("loc"):null);
+                Double[] coords = GeoIP.getCoordinateFromLocation((geoData!=null && geoData.has("loc"))?geoData.getString("loc"):null);
                 existingNode = new Node(node.getKey(),coords[0],coords[1]);
                 API.NODES.put(node.getKey(),existingNode);
             }

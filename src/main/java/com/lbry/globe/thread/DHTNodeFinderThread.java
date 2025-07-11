@@ -110,7 +110,7 @@ public class DHTNodeFinderThread implements Runnable{
                         Node existingNode = API.NODES.get(receiverPacket.getAddress());
                         if(existingNode==null){
                             JSONObject geoData = GeoIP.getCachedGeoIPInformation(receiverPacket.getAddress());
-                            Double[] coords = GeoIP.getCoordinateFromLocation(geoData.has("loc")?geoData.getString("loc"):null);
+                            Double[] coords = GeoIP.getCoordinateFromLocation((geoData!=null && geoData.has("loc"))?geoData.getString("loc"):null);
                             existingNode = new Node(receiverPacket.getAddress(),coords[0],coords[1]);
                             API.NODES.put(receiverPacket.getAddress(),existingNode);
                         }
