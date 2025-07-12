@@ -43,7 +43,7 @@ const POINT_COLOR = {
 };
 
 const POINT_TTL = {
-    blockchain: 60,
+    blockchain: 60 * 2,
 };
 
 const POINT_RADIUS = {

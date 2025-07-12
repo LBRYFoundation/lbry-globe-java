@@ -146,17 +146,21 @@ public class DHT{
 
     public static class RPCID{
 
-        private final DHT.Message<?> message;
+        private final byte[] id;
 
-        public RPCID(DHT.Message<?> message){
-            this.message = message;
+        public RPCID(byte[] id){
+            this.id = id;
+        }
+
+        public RPCID(Message<?> message){
+            this(message.rpcID);
         }
 
         @Override
         public boolean equals(Object obj){
             if(obj instanceof RPCID){
                 RPCID other = (RPCID) obj;
-                return Arrays.equals(this.message.rpcID,other.message.rpcID);// && Arrays.equals(this.message.nodeID,other.nodeID);
+                return Arrays.equals(this.id,other.id);
             }
             return super.equals(obj);
         }
@@ -169,9 +173,10 @@ public class DHT{
         @Override
         public String toString() {
             return "RPCID{" +
-                    "rpcID=" + Hex.encode(this.message.rpcID) +
+                    "id=" + Hex.encode(id) +
                     '}';
         }
+
     }
 
 }
