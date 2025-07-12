@@ -1,11 +1,11 @@
 package com.lbry.globe.thread;
 
-import com.dampcake.bencode.Bencode;
-import com.dampcake.bencode.Type;
 import com.lbry.globe.api.API;
 import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
+import com.lbry.globe.util.DHT;
 import com.lbry.globe.util.GeoIP;
+import com.lbry.globe.util.UDP;
 
 import java.io.IOException;
 import java.net.*;
@@ -16,8 +16,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import org.json.JSONObject;
 
 public class DHTNodeFinderThread implements Runnable{
-
-    private static final Bencode BENCODE = new Bencode();
 
     public static final String[] BOOTSTRAP = {
             "dht.lbry.grin.io:4444",		// Grin
@@ -43,7 +41,7 @@ public class DHTNodeFinderThread implements Runnable{
 
     private final Map<InetSocketAddress,Boolean> pingableDHTs = new ConcurrentHashMap<>();
 
-    private final Queue<DatagramPacket> incoming = new ConcurrentLinkedQueue<>();
+    private final Queue<UDP.Packet> incoming = new ConcurrentLinkedQueue<>();
 
     @Override
     public void run(){
@@ -52,15 +50,22 @@ public class DHTNodeFinderThread implements Runnable{
             this.pingableDHTs.put(new InetSocketAddress(uri.getHost(),uri.getPort()),true);
         }
 
-        // Ping Sender
+        this.startSender();
+        this.startReceiver();
+        this.handleIncomingMessages();
+    }
+
+    private void startSender(){
         new Thread(() -> {
             while(true){
+                System.out.println("[BULK PING]");
                 for(InetSocketAddress socketAddress : DHTNodeFinderThread.this.pingableDHTs.keySet()){
                     String hostname = socketAddress.getHostName();
                     int port = socketAddress.getPort();
                     try{
                         for(InetAddress ip : InetAddress.getAllByName(hostname)){
-                            DHTNodeFinderThread.ping(ip,port);
+                            InetSocketAddress destination = new InetSocketAddress(ip,port);
+                            this.doPing(destination);
                         }
                     }catch(Exception e){
                         e.printStackTrace();
@@ -71,147 +76,102 @@ public class DHTNodeFinderThread implements Runnable{
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
+                API.saveNodes();
             }
         }).start();
+    }
 
-        // Receiver
+    private void doPing(InetSocketAddress destination) throws IOException{
+        DHT.ping(DHTNodeFinderThread.SOCKET,destination).thenAccept((UDP.Packet packet) -> {
+            byte[] receivingBytes = packet.getData();
+            DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+            System.out.println(" - [Ping Response] "+message);
+
+            try{
+                this.doFindNode(packet.getAddress());
+            }catch(Exception e){
+                e.printStackTrace();
+            }
+
+            //TODO Improve updating pinged nodes.
+
+            Node existingNode = API.NODES.get(packet.getAddress().getAddress());
+            if(existingNode==null){
+                JSONObject geoData = GeoIP.getCachedGeoIPInformation(packet.getDatagramPacket().getAddress());
+                Double[] coords = GeoIP.getCoordinateFromLocation((geoData!=null && geoData.has("loc"))?geoData.getString("loc"):null);
+                existingNode = new Node(packet.getDatagramPacket().getAddress(),coords[0],coords[1]);
+                API.NODES.put(packet.getDatagramPacket().getAddress(),existingNode);
+            }
+            Service dhtService = null;
+            for(Service s : existingNode.getServices()){
+                if(s.getPort()==packet.getDatagramPacket().getPort() && "dht".equals(s.getType())){
+                    dhtService = s;
+                    break;
+                }
+            }
+
+            if(dhtService==null){
+                existingNode.getServices().add(new Service(UUID.randomUUID(),packet.getDatagramPacket().getPort(),"dht"));
+            }else{
+                dhtService.updateLastSeen();
+            }
+        }).exceptionally((Throwable e) -> null);
+    }
+
+    private void doFindNode(InetSocketAddress destination) throws IOException{
+        DHT.findNode(DHTNodeFinderThread.SOCKET,destination).thenAccept((UDP.Packet packet) -> {
+            byte[] receivingBytes = packet.getData();
+            DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+            System.out.println(" - [FindNode Response] "+message);
+
+            List<List<Object>> nodes = (List<List<Object>>) message.getPayload();
+            for(List<Object> n : nodes){
+                String hostname = (String) n.get(1);
+                int port = (int) ((long) n.get(2));
+                InetSocketAddress existingSocketAddr = null;
+                for(InetSocketAddress addr : this.pingableDHTs.keySet()){
+                    if(addr.getHostName().equals(hostname) && addr.getPort()==port){
+                        existingSocketAddr = addr;
+                    }
+                }
+                if(existingSocketAddr==null){
+                    this.pingableDHTs.put(new InetSocketAddress(hostname,port),false);
+                }
+            }
+        }).exceptionally((Throwable e) -> null);
+    }
+
+    private void startReceiver(){
         new Thread(() -> {
             while(true) {
                 try {
-                    byte[] buffer = new byte[1024];
-                    DatagramPacket receiverPacket = new DatagramPacket(buffer, buffer.length);
-                    DHTNodeFinderThread.SOCKET.receive(receiverPacket);
+                    UDP.Packet receiverPacket = UDP.receive(DHTNodeFinderThread.SOCKET);
                     DHTNodeFinderThread.this.incoming.add(receiverPacket);
+
+                    byte[] receivingBytes = receiverPacket.getData();
+
+                    DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+                    DHT.RPCID rpcid = new DHT.RPCID(message);
+                    DHT.getFutureManager().finishFuture(rpcid,receiverPacket);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
         }).start();
+    }
 
-        while(true){
-
-            //TODO: MARKS AS DELETED
-
+    private void handleIncomingMessages(){
+        while(DHTNodeFinderThread.SOCKET.isBound()){
             while(this.incoming.peek()!=null){
-                DatagramPacket receiverPacket = this.incoming.poll();
+                UDP.Packet receiverPacket = this.incoming.poll();
                 byte[] receivingBytes = receiverPacket.getData();
-                Map<String, Object> receivingDictionary = DHTNodeFinderThread.decodePacket(receivingBytes);
-                if(receivingDictionary.get("0").equals(1L)){
-                    if(receivingDictionary.get("3").equals("pong")){
-                        try{
-                            DHTNodeFinderThread.findNode(receiverPacket.getAddress(),receiverPacket.getPort());
-                        }catch(Exception e){
-                            e.printStackTrace();
-                        }
 
-                        //TODO Improve updating pinged nodes.
-                        System.out.println("PONG: "+receiverPacket.getSocketAddress());
-
-                        Node existingNode = API.NODES.get(receiverPacket.getAddress());
-                        if(existingNode==null){
-                            JSONObject geoData = GeoIP.getCachedGeoIPInformation(receiverPacket.getAddress());
-                            Double[] coords = GeoIP.getCoordinateFromLocation((geoData!=null && geoData.has("loc"))?geoData.getString("loc"):null);
-                            existingNode = new Node(receiverPacket.getAddress(),coords[0],coords[1]);
-                            API.NODES.put(receiverPacket.getAddress(),existingNode);
-                        }
-                        Service dhtService = null;
-                        for(Service s : existingNode.getServices()){
-                            if(s.getPort()==receiverPacket.getPort() && "dht".equals(s.getType())){
-                                dhtService = s;
-                                break;
-                            }
-                        }
-
-                        if(dhtService==null){
-                            existingNode.getServices().add(new Service(UUID.randomUUID(),receiverPacket.getPort(),"dht"));
-                        }else{
-                            dhtService.updateLastSeen();
-                        }
-                    }else{
-                        //TODO Save connections too
-                        List<List<Object>> nodes = (List<List<Object>>) receivingDictionary.get("3");
-                        for(List<Object> n : nodes){
-                            String hostname = (String) n.get(1);
-                            int port = (int) ((long) n.get(2));
-                            InetSocketAddress existingSocketAddr = null;
-                            for(InetSocketAddress addr : this.pingableDHTs.keySet()){
-                                if(addr.getHostName().equals(hostname) && addr.getPort()==port){
-                                    existingSocketAddr = addr;
-                                }
-                            }
-                            if(existingSocketAddr==null){
-                                this.pingableDHTs.put(new InetSocketAddress(hostname,port),false);
-                            }
-                        }
-                    }
+                DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+                if(message.getType()==DHT.Message.TYPE_REQUEST){
+                    System.out.println("Incoming request");
                 }
             }
-
-            API.saveNodes();
-            //TODO: REMOVE MARKED AS DELETED
-
-            System.out.println("----");
-            try {
-                Thread.sleep(1_000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
         }
-    }
-
-    private static void ping(InetAddress ip,int port) throws IOException{
-        byte[] rpcID = new byte[20];
-        new Random().nextBytes(rpcID);
-
-        Map<String,Object> ping = new HashMap<>();
-        ping.put("0",0);
-        ping.put("1",rpcID);
-        ping.put("2",new byte[48]);
-        ping.put("3","ping");
-        ping.put("4",Collections.singletonList(Collections.singletonMap("protocolVersion",1)));
-        byte[] pingBytes = DHTNodeFinderThread.encodePacket(ping);
-
-        DatagramPacket sendingDiagram = new DatagramPacket(pingBytes,pingBytes.length,ip,port);
-        DHTNodeFinderThread.SOCKET.send(sendingDiagram);
-    }
-
-    private static void findNode(InetAddress ip,int port) throws IOException{
-        byte[] rpcID = new byte[20];
-        new Random().nextBytes(rpcID);
-
-        Map<String,Object> findNode = new HashMap<>();
-        findNode.put("0",0);
-        findNode.put("1",rpcID);
-        findNode.put("2",new byte[48]);
-        findNode.put("3","findNode");
-        findNode.put("4",Arrays.asList(new byte[48],Collections.singletonMap("protocolVersion",1)));
-        byte[] findNodeBytes = DHTNodeFinderThread.encodePacket(findNode);
-
-        DatagramPacket sendingDiagram = new DatagramPacket(findNodeBytes,findNodeBytes.length,ip,port);
-        DHTNodeFinderThread.SOCKET.send(sendingDiagram);
-    }
-
-    private static byte[] encodePacket(Map<String,Object> map){
-        return DHTNodeFinderThread.BENCODE.encode(map);
-    }
-
-    private static Map<String,Object> decodePacket(byte[] bytes){
-        // Fix invalid B-encoding
-        if(bytes[0]=='d'){
-            bytes[0] = 'l';
-        }
-        List<Object> list = DHTNodeFinderThread.BENCODE.decode(bytes,Type.LIST);
-        for(int i=0;i<list.size();i++){
-            if(i%2==0){
-                list.set(i,String.valueOf(list.get(i)));
-            }
-        }
-        bytes = DHTNodeFinderThread.BENCODE.encode(list);
-        if(bytes[0]=='l'){
-            bytes[0] = 'd';
-        }
-        // Normal B-decoding
-        return DHTNodeFinderThread.BENCODE.decode(bytes,Type.DICTIONARY);
     }
 
 }
