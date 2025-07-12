@@ -1,6 +1,9 @@
 package com.lbry.globe.util;
 
+import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TimeoutFutureManager<K,V>{
 
@@ -31,6 +34,16 @@ public class TimeoutFutureManager<K,V>{
             this.futures.get(key).complete(value);
             this.futures.remove(key);
         }
+    }
+
+    public static <V> CompletableFuture<List<V>> getBulk(CompletableFuture<V>[] futures){
+        return CompletableFuture.allOf(futures).exceptionally((t) -> null).thenApply((v) -> Stream.of(futures).map(future -> {
+            try{
+                return future.join();
+            }catch(Exception e){
+                return null;
+            }
+        }).collect(Collectors.toList()));
     }
 
 }

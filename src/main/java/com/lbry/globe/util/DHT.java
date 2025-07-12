@@ -3,36 +3,63 @@ package com.lbry.globe.util;
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class DHT{
 
-    private static final ScheduledExecutorService ses = Executors.newScheduledThreadPool(12);
-    private static final TimeoutFutureManager<RPCID,UDP.Packet> futureManager = new TimeoutFutureManager<>(ses);
+    public static byte[] NODE_ID = new byte[48];
+
+    private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private static final TimeoutFutureManager<RPCID,UDP.Packet> futureManager = new TimeoutFutureManager<>(executor);
+    private static final Map<InetSocketAddress,Boolean> peers = new ConcurrentHashMap<>();
+    private static final DatagramSocket socket;
+
+    static{
+        try{
+            socket = new DatagramSocket();
+        }catch(SocketException e){
+            throw new RuntimeException(e);
+        }
+    }
 
     public static TimeoutFutureManager<RPCID,UDP.Packet> getFutureManager(){
         return DHT.futureManager;
+    }
+
+    public static DatagramSocket getSocket(){
+        return DHT.socket;
+    }
+
+    public static Map<InetSocketAddress,Boolean> getPeers(){
+        return DHT.peers;
     }
 
     public static CompletableFuture<UDP.Packet> ping(DatagramSocket socket,InetSocketAddress destination) throws IOException {
         byte[] rpcID = new byte[20];
         new Random().nextBytes(rpcID);
 
-        DHT.Message<String> pingMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,new byte[48],"ping",Collections.singletonList(Collections.singletonMap("protocolVersion",1)));
+        DHT.Message<String> pingMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,DHT.NODE_ID,"ping",Collections.singletonList(Collections.singletonMap("protocolVersion",1)));
 
         return DHT.sendWithFuture(socket,destination,pingMessage);
     }
 
-    public static CompletableFuture<UDP.Packet> findNode(DatagramSocket socket,InetSocketAddress destination) throws IOException{
+    public static CompletableFuture<UDP.Packet> findNode(DatagramSocket socket,InetSocketAddress destination,byte[] key) throws IOException{
         byte[] rpcID = new byte[20];
         new Random().nextBytes(rpcID);
 
-        DHT.Message<String> findNodeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,new byte[48],"findNode",Arrays.asList(new byte[48],Collections.singletonMap("protocolVersion",1)));
+        DHT.Message<String> findNodeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,DHT.NODE_ID,"findNode",Arrays.asList(key,Collections.singletonMap("protocolVersion",1)));
+
+        return DHT.sendWithFuture(socket,destination,findNodeMessage);
+    }
+
+    public static CompletableFuture<UDP.Packet> findValue(DatagramSocket socket,InetSocketAddress destination,byte[] key) throws IOException{
+        byte[] rpcID = new byte[20];
+        new Random().nextBytes(rpcID);
+
+        DHT.Message<String> findNodeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,DHT.NODE_ID,"findValue",Arrays.asList(key,Collections.singletonMap("protocolVersion",1)));
 
         return DHT.sendWithFuture(socket,destination,findNodeMessage);
     }
@@ -40,7 +67,7 @@ public class DHT{
     protected static CompletableFuture<UDP.Packet> sendWithFuture(DatagramSocket socket,InetSocketAddress destination, DHT.Message<?> message) throws IOException{
         UDP.send(socket,new UDP.Packet(destination,message.toBencode()));
         RPCID key = new RPCID(message);
-        return DHT.futureManager.createFuture(key,5,TimeUnit.SECONDS);
+        return DHT.futureManager.createFuture(key,1,TimeUnit.SECONDS);
     }
 
     public static class Message<P>{
@@ -96,7 +123,7 @@ public class DHT{
             return this.arguments;
         }
 
-        public byte[] toBencode(){
+        public Map<String,Object> toMap(){
             Map<String,Object> dictionary = new HashMap<>();
             dictionary.put("0",this.type);
             dictionary.put("1",this.rpcID);
@@ -107,7 +134,11 @@ public class DHT{
             if(this.arguments!=null){
                 dictionary.put("4",this.arguments);
             }
-            return BencodeConverter.encode(dictionary);
+            return dictionary;
+        }
+
+        public byte[] toBencode(){
+            return BencodeConverter.encode(this.toMap());
         }
 
         private DHT.Message<P> setFromBencode(byte[] data){

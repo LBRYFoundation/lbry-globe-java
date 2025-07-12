@@ -10,7 +10,6 @@ import com.lbry.globe.util.UDP;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import org.json.JSONObject;
@@ -29,25 +28,13 @@ public class DHTNodeFinderThread implements Runnable{
             "s2.lbry.network:4444",
     };
 
-    private static final DatagramSocket SOCKET;
-
-    static{
-        try{
-            SOCKET = new DatagramSocket();
-        }catch(SocketException e){
-            throw new RuntimeException(e);
-        }
-    }
-
-    private final Map<InetSocketAddress,Boolean> pingableDHTs = new ConcurrentHashMap<>();
-
     private final Queue<UDP.Packet> incoming = new ConcurrentLinkedQueue<>();
 
     @Override
     public void run(){
         for(String bootstrap : DHTNodeFinderThread.BOOTSTRAP){
             URI uri = URI.create("udp://"+bootstrap);
-            this.pingableDHTs.put(new InetSocketAddress(uri.getHost(),uri.getPort()),true);
+            DHT.getPeers().put(new InetSocketAddress(uri.getHost(),uri.getPort()),true);
         }
 
         this.startSender();
@@ -59,7 +46,7 @@ public class DHTNodeFinderThread implements Runnable{
         new Thread(() -> {
             while(true){
                 System.out.println("[BULK PING]");
-                for(InetSocketAddress socketAddress : DHTNodeFinderThread.this.pingableDHTs.keySet()){
+                for(InetSocketAddress socketAddress : DHT.getPeers().keySet()){
                     String hostname = socketAddress.getHostName();
                     int port = socketAddress.getPort();
                     try{
@@ -82,7 +69,7 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void doPing(InetSocketAddress destination) throws IOException{
-        DHT.ping(DHTNodeFinderThread.SOCKET,destination).thenAccept((UDP.Packet packet) -> {
+        DHT.ping(DHT.getSocket(),destination).thenAccept((UDP.Packet packet) -> {
             byte[] receivingBytes = packet.getData();
             DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
             System.out.println(" - [Ping Response] "+message);
@@ -119,7 +106,7 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void doFindNode(InetSocketAddress destination) throws IOException{
-        DHT.findNode(DHTNodeFinderThread.SOCKET,destination).thenAccept((UDP.Packet packet) -> {
+        DHT.findNode(DHT.getSocket(),destination,new byte[48]).thenAccept((UDP.Packet packet) -> {
             byte[] receivingBytes = packet.getData();
             DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
             System.out.println(" - [FindNode Response] "+message);
@@ -129,13 +116,13 @@ public class DHTNodeFinderThread implements Runnable{
                 String hostname = (String) n.get(1);
                 int port = (int) ((long) n.get(2));
                 InetSocketAddress existingSocketAddr = null;
-                for(InetSocketAddress addr : this.pingableDHTs.keySet()){
+                for(InetSocketAddress addr : DHT.getPeers().keySet()){
                     if(addr.getHostName().equals(hostname) && addr.getPort()==port){
                         existingSocketAddr = addr;
                     }
                 }
                 if(existingSocketAddr==null){
-                    this.pingableDHTs.put(new InetSocketAddress(hostname,port),false);
+                    DHT.getPeers().put(new InetSocketAddress(hostname,port),false);
                 }
             }
         }).exceptionally((Throwable e) -> null);
@@ -145,7 +132,7 @@ public class DHTNodeFinderThread implements Runnable{
         new Thread(() -> {
             while(true) {
                 try {
-                    UDP.Packet receiverPacket = UDP.receive(DHTNodeFinderThread.SOCKET);
+                    UDP.Packet receiverPacket = UDP.receive(DHT.getSocket());
                     DHTNodeFinderThread.this.incoming.add(receiverPacket);
 
                     byte[] receivingBytes = receiverPacket.getData();
@@ -161,7 +148,7 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void handleIncomingMessages(){
-        while(DHTNodeFinderThread.SOCKET.isBound()){
+        while(DHT.getSocket().isBound()){
             while(this.incoming.peek()!=null){
                 UDP.Packet receiverPacket = this.incoming.poll();
                 byte[] receivingBytes = receiverPacket.getData();

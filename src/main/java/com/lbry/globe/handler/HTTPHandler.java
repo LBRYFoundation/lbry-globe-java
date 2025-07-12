@@ -3,6 +3,10 @@ package com.lbry.globe.handler;
 import com.lbry.globe.Main;
 import com.lbry.globe.api.API;
 
+import com.lbry.globe.util.DHT;
+import com.lbry.globe.util.Hex;
+import com.lbry.globe.util.TimeoutFutureManager;
+import com.lbry.globe.util.UDP;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -13,9 +17,11 @@ import io.netty.util.AttributeKey;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.security.MessageDigest;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -78,6 +84,106 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
                 API.fillPoints(points);
 
                 JSONObject json = new JSONObject().put("points",points);//new JSONObject(new String(jsonData));
+                ByteBuf responseContent = Unpooled.copiedBuffer(json.toString().getBytes());
+                FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(),HttpResponseStatus.OK,responseContent);
+                response.headers().add("Content-Length",responseContent.capacity());
+                response.headers().add("Content-Type","application/json");
+                ctx.write(response);
+                return;
+            }
+            if("/api/command".equals(uri.getPath())){
+                JSONObject json = new JSONObject();
+
+                String[] queryParts = uri.getQuery()!=null?uri.getQuery().split(";"):new String[]{""};
+                if("ping".equals(queryParts[0]) || "findNode".equals(queryParts[0]) || "findValue".equals(queryParts[0])){
+                    //STORE IS NOT SUPPORTED
+                    json.put("query",queryParts);
+
+                    Map<InetSocketAddress,Boolean> peers = DHT.getPeers();
+                    CompletableFuture<UDP.Packet>[] futures = new CompletableFuture[peers.size()];
+                    int i=0;
+                    for(Map.Entry<InetSocketAddress,Boolean> entry : peers.entrySet()){
+                        try{
+                            if("ping".equals(queryParts[0])){
+                                futures[i] = DHT.ping(DHT.getSocket(),entry.getKey());
+                            }
+                            if("findNode".equals(queryParts[0])){
+                                futures[i] = DHT.findNode(DHT.getSocket(),entry.getKey(),queryParts.length>=2?Hex.decode(queryParts[1]):new byte[48]);
+                            }
+                            if("findValue".equals(queryParts[0])){
+                                futures[i] = DHT.findValue(DHT.getSocket(),entry.getKey(),queryParts.length>=2?Hex.decode(queryParts[1]):new byte[48]);
+                            }
+                        }catch(IOException ignored){}
+                        i++;
+                    }
+
+                    CompletableFuture<List<UDP.Packet>> total = TimeoutFutureManager.getBulk(futures);
+
+                    JSONObject jsonData = new JSONObject();
+                    json.put("data",jsonData);
+                    try{
+                        List<UDP.Packet> responses = total.get();
+                        for(UDP.Packet resp : responses){
+                            if(resp!=null){
+                                DHT.Message<?> message = DHT.Message.fromBencode(resp.getData());
+                                if("ping".equals(queryParts[0])){
+                                    String pong = (String) message.getPayload();
+                                    jsonData.put(resp.getAddress().getAddress().getHostAddress()+":"+resp.getAddress().getPort(),pong);
+                                }
+                                if("findNode".equals(queryParts[0])){
+                                    JSONArray payload = new JSONArray();
+                                    List<List<Object>> nodes = (List<List<Object>>) message.getPayload();
+                                    for(List<Object> node : nodes){
+                                        JSONObject p = new JSONObject();
+                                        p.put("nodeID", Hex.encode((byte[]) node.get(0)));
+                                        p.put("hostname",node.get(1));
+                                        p.put("port",node.get(2));
+                                        payload.put(p);
+                                    }
+                                    jsonData.put(resp.getAddress().getAddress().getHostAddress()+":"+resp.getAddress().getPort(),payload);
+                                }
+                                if("findValue".equals(queryParts[0])){
+                                    Map<String,Object> map = (Map<String, Object>) message.getPayload();
+                                    JSONObject payload = new JSONObject();
+                                    payload.put("p",map.get("p"));
+                                    payload.put("protocolVersion",map.get("protocolVersion"));
+                                    JSONArray contacts = new JSONArray();
+                                    List<List<Object>> nodes = (List<List<Object>>) map.get("contacts");
+                                    for(List<Object> node : nodes){
+                                        JSONObject p = new JSONObject();
+                                        p.put("nodeID", Hex.encode((byte[]) node.get(0)));
+                                        p.put("hostname",node.get(1));
+                                        p.put("port",node.get(2));
+                                        contacts.put(p);
+                                    }
+                                    payload.put("contacts",contacts);
+                                    //payload.put("token",Hex.encode((byte[]) map.get("token")));
+                                    jsonData.put(resp.getAddress().getAddress().getHostAddress()+":"+resp.getAddress().getPort(),payload);
+                                }
+                            }
+                        }
+                    }catch(Exception e){
+                        e.printStackTrace();
+                    }
+
+
+
+//                for(Map.Entry<InetSocketAddress,Boolean> dest : DHT.getPeers().entrySet()){
+//                    if(!dest.getValue()){
+//                        try{
+//
+//                            UDP.Packet packet = DHT.ping(DHT.getSocket(),dest.getKey()).get(1, TimeUnit.SECONDS);
+//                            DHT.Message<?> message = DHT.Message.fromBencode(packet.getData());
+//                            json.put(dest.getKey().toString(),message.getPayload());
+//                        }catch(Exception e){
+//                            json.put(dest.getKey().toString(),e.toString());
+//                        }
+//                    }
+//                }
+                }else{
+                    json.put("error","Expecting one of 'ping','findNode' or 'findValue'.");
+                }
+
                 ByteBuf responseContent = Unpooled.copiedBuffer(json.toString().getBytes());
                 FullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(),HttpResponseStatus.OK,responseContent);
                 response.headers().add("Content-Length",responseContent.capacity());
