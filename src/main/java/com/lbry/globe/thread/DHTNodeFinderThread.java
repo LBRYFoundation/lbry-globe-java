@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.json.JSONObject;
 
@@ -43,29 +45,22 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void startSender(){
-        new Thread(() -> {
-            while(true){
-                System.out.println("[BULK PING]");
-                for(InetSocketAddress socketAddress : DHT.getPeers().keySet()){
-                    String hostname = socketAddress.getHostName();
-                    int port = socketAddress.getPort();
-                    try{
-                        for(InetAddress ip : InetAddress.getAllByName(hostname)){
-                            InetSocketAddress destination = new InetSocketAddress(ip,port);
-                            this.doPing(destination);
-                        }
-                    }catch(Exception e){
-                        e.printStackTrace();
+        Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(() -> {
+            System.out.println("[BULK PING]");
+            API.saveNodes();
+            for(InetSocketAddress socketAddress : DHT.getPeers().keySet()){
+                String hostname = socketAddress.getHostName();
+                int port = socketAddress.getPort();
+                try{
+                    for(InetAddress ip : InetAddress.getAllByName(hostname)){
+                        InetSocketAddress destination = new InetSocketAddress(ip,port);
+                        this.doPing(destination);
                     }
+                }catch(Exception e){
+                    e.printStackTrace();
                 }
-                try {
-                    Thread.sleep(15_000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                API.saveNodes();
             }
-        }).start();
+        },0,15,TimeUnit.SECONDS);
     }
 
     private void doPing(InetSocketAddress destination) throws IOException{
