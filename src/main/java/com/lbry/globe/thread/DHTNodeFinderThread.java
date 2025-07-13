@@ -11,7 +11,6 @@ import com.lbry.globe.util.UDP;
 import java.io.IOException;
 import java.net.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
@@ -31,8 +30,6 @@ public class DHTNodeFinderThread implements Runnable{
             "s2.lbry.network:4444",
     };
 
-    private final Queue<UDP.Packet> incoming = new ConcurrentLinkedQueue<>();
-
     @Override
     public void run(){
         for(String bootstrap : DHTNodeFinderThread.BOOTSTRAP){
@@ -42,7 +39,6 @@ public class DHTNodeFinderThread implements Runnable{
 
         this.startSender();
         this.startReceiver();
-        this.handleIncomingMessages();
     }
 
     private void startSender(){
@@ -129,7 +125,6 @@ public class DHTNodeFinderThread implements Runnable{
             while(DHT.getSocket().isBound()) {
                 try {
                     UDP.Packet receiverPacket = UDP.receive(DHT.getSocket());
-                    DHTNodeFinderThread.this.incoming.add(receiverPacket);
 
                     byte[] receivingBytes = receiverPacket.getData();
 
@@ -141,22 +136,6 @@ public class DHTNodeFinderThread implements Runnable{
                 }
             }
         },"DHT Receiver").start();
-    }
-
-    private void handleIncomingMessages(){
-        new Thread(() -> {
-            while(DHT.getSocket().isBound()){
-                while(this.incoming.peek()!=null){
-                    UDP.Packet receiverPacket = this.incoming.poll();
-                    byte[] receivingBytes = receiverPacket.getData();
-
-                    DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
-                    if(message.getType()==DHT.Message.TYPE_REQUEST){
-                        System.out.println("Incoming request");
-                    }
-                }
-            }
-        },"DHT Incoming").start();
     }
 
 }
