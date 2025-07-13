@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+import io.netty.util.concurrent.DefaultThreadFactory;
 import org.json.JSONObject;
 
 public class DHTNodeFinderThread implements Runnable{
@@ -45,8 +46,8 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void startSender(){
-        Executors.newSingleThreadScheduledExecutor().scheduleWithFixedDelay(() -> {
-            System.out.println("[BULK PING]");
+        Executors.newSingleThreadScheduledExecutor(new DefaultThreadFactory("DHT Sender")).scheduleWithFixedDelay(() -> {
+            System.out.println("[DHT] BULK PING");
             API.saveNodes();
             for(InetSocketAddress socketAddress : DHT.getPeers().keySet()){
                 String hostname = socketAddress.getHostName();
@@ -139,7 +140,7 @@ public class DHTNodeFinderThread implements Runnable{
                     e.printStackTrace();
                 }
             }
-        }).start();
+        },"DHT Receiver").start();
     }
 
     private void handleIncomingMessages(){

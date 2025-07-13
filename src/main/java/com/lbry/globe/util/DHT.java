@@ -1,5 +1,7 @@
 package com.lbry.globe.util;
 
+import io.netty.util.concurrent.DefaultThreadFactory;
+
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
@@ -12,7 +14,7 @@ public class DHT{
 
     public static byte[] NODE_ID = new byte[48];
 
-    private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+    private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(new DefaultThreadFactory("Timeout Future"));
     private static final TimeoutFutureManager<RPCID,UDP.Packet> futureManager = new TimeoutFutureManager<>(executor);
     private static final Map<InetSocketAddress,Boolean> peers = new ConcurrentHashMap<>();
     private static final DatagramSocket socket;

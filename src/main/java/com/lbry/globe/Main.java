@@ -17,6 +17,7 @@ import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
+import io.netty.util.concurrent.DefaultThreadFactory;
 
 import java.util.Arrays;
 import java.util.logging.Logger;
@@ -35,7 +36,7 @@ public class Main implements Runnable{
 
     @Override
     public void run(){
-        EventLoopGroup group = new MultiThreadIoEventLoopGroup(NioIoHandler.newFactory());
+        EventLoopGroup group = new MultiThreadIoEventLoopGroup(new DefaultThreadFactory("Netty Event Loop"),NioIoHandler.newFactory());
         this.runTCPServerHTTP(group);
     }
 
@@ -59,17 +60,17 @@ public class Main implements Runnable{
 
     public static void main(String... args){
         Main.LOGGER.info("Loading nodes cache");
-        Runtime.getRuntime().addShutdownHook(new Thread(API::saveNodes));
+        Runtime.getRuntime().addShutdownHook(new Thread(API::saveNodes,"Save Nodes"));
         API.loadNodes();
         Main.LOGGER.info("Loading GeoIP cache");
-        Runtime.getRuntime().addShutdownHook(new Thread(GeoIP::saveCache));
+        Runtime.getRuntime().addShutdownHook(new Thread(GeoIP::saveCache,"Save Cache"));
         GeoIP.loadCache();
         Main.LOGGER.info("Starting finder thread for blockchain nodes");
-        new Thread(new BlockchainNodeFinderThread()).start();
+        new Thread(new BlockchainNodeFinderThread(),"Block Node Finder").start();
         Main.LOGGER.info("Starting finder thread for DHT nodes");
-        new Thread(new DHTNodeFinderThread()).start();
+        new DHTNodeFinderThread().run();
         Main.LOGGER.info("Starting finder thread for hub nodes");
-        new Thread(new HubNodeFinderThread()).start();
+        new HubNodeFinderThread().run();
         Main.LOGGER.info("Starting server");
         new Main(args).run();
     }
