@@ -5,6 +5,7 @@ import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
 import com.lbry.globe.util.DHT;
 import com.lbry.globe.util.GeoIP;
+import com.lbry.globe.util.NamedThreadFactory;
 import com.lbry.globe.util.UDP;
 
 import java.io.IOException;
@@ -14,7 +15,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import io.netty.util.concurrent.DefaultThreadFactory;
 import org.json.JSONObject;
 
 public class DHTNodeFinderThread implements Runnable{
@@ -46,7 +46,7 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void startSender(){
-        Executors.newSingleThreadScheduledExecutor(new DefaultThreadFactory("DHT Sender")).scheduleWithFixedDelay(() -> {
+        Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("DHT Sender")).scheduleWithFixedDelay(() -> {
             System.out.println("[DHT] BULK PING");
             API.saveNodes();
             for(InetSocketAddress socketAddress : DHT.getPeers().keySet()){
@@ -126,7 +126,7 @@ public class DHTNodeFinderThread implements Runnable{
 
     private void startReceiver(){
         new Thread(() -> {
-            while(true) {
+            while(DHT.getSocket().isBound()) {
                 try {
                     UDP.Packet receiverPacket = UDP.receive(DHT.getSocket());
                     DHTNodeFinderThread.this.incoming.add(receiverPacket);

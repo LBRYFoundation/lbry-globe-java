@@ -4,22 +4,18 @@ import com.lbry.globe.api.API;
 import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
 import com.lbry.globe.util.GeoIP;
+import com.lbry.globe.util.NamedThreadFactory;
 
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import io.netty.util.concurrent.DefaultThreadFactory;
-import io.netty.util.concurrent.ThreadPerTaskExecutor;
 import org.json.JSONArray;
 import org.json.JSONObject;
-
-import javax.net.SocketFactory;
 
 public class HubNodeFinderThread implements Runnable{
 
@@ -46,11 +42,17 @@ public class HubNodeFinderThread implements Runnable{
 
     @Override
     public void run(){
-        Executors.newSingleThreadScheduledExecutor(new DefaultThreadFactory("Hub Sender")).scheduleWithFixedDelay(() -> {
+        Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Hub Sender")).scheduleWithFixedDelay(() -> {
             System.out.println("[HUB] BULK PING");
             for(String hostname : HubNodeFinderThread.HUBS){
+                InetAddress[] ips = null;
                 try{
-                    for(InetAddress ip : InetAddress.getAllByName(hostname)){
+                    ips = InetAddress.getAllByName(hostname);
+                }catch(Exception e){
+                    e.printStackTrace();
+                }
+                if(ips!=null){
+                    for(InetAddress ip : ips){
                         if(!HubNodeFinderThread.SOCKETS.containsKey(ip)){
                             HubNodeFinderThread.SOCKETS.put(ip,new Socket());
                         }
@@ -69,35 +71,41 @@ public class HubNodeFinderThread implements Runnable{
                         }
                         System.out.println(" - [Hub] To: "+s.getRemoteSocketAddress());
 
-                        JSONObject obj = new JSONObject();
-                        obj.put("id",new Random().nextInt());
-                        obj.put("method","server.banner");
-                        obj.put("params",new JSONArray());
-                        s.getOutputStream().write((obj+"\n").getBytes());
-                        s.getOutputStream().flush();
+                        try{
+                            JSONObject obj = new JSONObject();
+                            obj.put("id",new Random().nextInt());
+                            obj.put("method","server.banner");
+                            obj.put("params",new JSONArray());
+                            s.getOutputStream().write((obj+"\n").getBytes());
+                            s.getOutputStream().flush();
+                        }catch(Exception e){
+                            e.printStackTrace();
+                        }
                     }
-                    for(InetAddress ip : InetAddress.getAllByName(hostname)){
+                    for(InetAddress ip : ips){
                         Socket s = HubNodeFinderThread.SOCKETS.get(ip);
                         if(s==null || !s.isConnected() || s.isClosed()){
                             continue;
                         }
                         System.out.println(" - [Hub] From: "+s.getRemoteSocketAddress());
 
-                        InputStream in = s.getInputStream();
-                        StringBuilder sb = new StringBuilder();
-                        int b;
-                        while((b = in.read())!='\n'){
-                            sb.append(new String(new byte[]{(byte) (b & 0xFF)}));
-                        }
-                        in.close();
-                        JSONObject respObj = new JSONObject(sb.toString());
-                        boolean successful = respObj.has("result") && !respObj.isNull("result");
-                        if(successful){
-                            LAST_SEEN.put(ip,System.currentTimeMillis());
+                        try{
+                            InputStream in = s.getInputStream();
+                            StringBuilder sb = new StringBuilder();
+                            int b;
+                            while((b = in.read())!='\n'){
+                                sb.append(new String(new byte[]{(byte) (b & 0xFF)}));
+                            }
+                            in.close();
+                            JSONObject respObj = new JSONObject(sb.toString());
+                            boolean successful = respObj.has("result") && !respObj.isNull("result");
+                            if(successful){
+                                LAST_SEEN.put(ip,System.currentTimeMillis());
+                            }
+                        }catch(Exception e){
+                            e.printStackTrace();
                         }
                     }
-                }catch(Exception e){
-                    e.printStackTrace();
                 }
             }
 

@@ -13,7 +13,10 @@ import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URI;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
+import com.lbry.globe.util.NamedThreadFactory;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -23,7 +26,8 @@ public class BlockchainNodeFinderThread implements Runnable{
     public void run(){
         String rpcURL = Environment.getVariable("BLOCKCHAIN_RPC_URL");
         if(rpcURL!=null){
-            while(true){
+            Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Blockchain Detector")).scheduleWithFixedDelay(() -> {
+                System.out.println("[BLOCKCHAIN] BULK PING");
                 try{
                     HttpURLConnection conn = (HttpURLConnection) new URI(rpcURL).toURL().openConnection();
                     conn.setDoOutput(true);
@@ -45,12 +49,8 @@ public class BlockchainNodeFinderThread implements Runnable{
                 }catch(Exception e){
                     e.printStackTrace();
                 }
-                try {
-                    Thread.sleep(10_000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            },0,10,TimeUnit.SECONDS);
+
         }
     }
 
