@@ -144,17 +144,19 @@ public class DHTNodeFinderThread implements Runnable{
     }
 
     private void handleIncomingMessages(){
-        while(DHT.getSocket().isBound()){
-            while(this.incoming.peek()!=null){
-                UDP.Packet receiverPacket = this.incoming.poll();
-                byte[] receivingBytes = receiverPacket.getData();
+        new Thread(() -> {
+            while(DHT.getSocket().isBound()){
+                while(this.incoming.peek()!=null){
+                    UDP.Packet receiverPacket = this.incoming.poll();
+                    byte[] receivingBytes = receiverPacket.getData();
 
-                DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
-                if(message.getType()==DHT.Message.TYPE_REQUEST){
-                    System.out.println("Incoming request");
+                    DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+                    if(message.getType()==DHT.Message.TYPE_REQUEST){
+                        System.out.println("Incoming request");
+                    }
                 }
             }
-        }
+        },"DHT Incoming").start();
     }
 
 }
