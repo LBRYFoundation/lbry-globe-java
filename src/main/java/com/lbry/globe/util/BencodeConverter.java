@@ -32,10 +32,10 @@ public class BencodeConverter{
         }
 
         // Normal B-decoding
-        return BencodeConverter.BENCODE.decode(bytes,Type.DICTIONARY);
+        return BencodeConverter.walkAndConvertByteBufferToByteArrayOrString(BencodeConverter.BENCODE.decode(bytes,Type.DICTIONARY));
     }
 
-    public static <V> V walkAndConvertByteBufferToByteArrayOrString(Object value){
+    private static <V> V walkAndConvertByteBufferToByteArrayOrString(Object value){
         if(value instanceof ByteBuffer){
             ByteBuffer bb = (ByteBuffer) value;
             byte[] ba = bb.array();

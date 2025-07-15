@@ -38,30 +38,27 @@ public class DHT{
     }
 
     public static CompletableFuture<UDP.Packet> ping(DatagramSocket socket,InetSocketAddress destination) throws IOException {
-        byte[] rpcID = new byte[20];
-        new Random().nextBytes(rpcID);
-
-        DHT.Message<String> pingMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,DHT.NODE_ID,"ping",Collections.singletonList(Collections.singletonMap("protocolVersion",1)));
+        DHT.Message<String> pingMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,DHT.RPCID.generate(),DHT.NODE_ID,"ping",Collections.singletonList(Collections.singletonMap("protocolVersion",1)));
 
         return DHT.sendWithFuture(socket,destination,pingMessage);
     }
 
     public static CompletableFuture<UDP.Packet> findNode(DatagramSocket socket,InetSocketAddress destination,byte[] key) throws IOException{
-        byte[] rpcID = new byte[20];
-        new Random().nextBytes(rpcID);
-
-        DHT.Message<String> findNodeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,DHT.NODE_ID,"findNode",Arrays.asList(key,Collections.singletonMap("protocolVersion",1)));
+        DHT.Message<String> findNodeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,DHT.RPCID.generate(),DHT.NODE_ID,"findNode",Arrays.asList(key,Collections.singletonMap("protocolVersion",1)));
 
         return DHT.sendWithFuture(socket,destination,findNodeMessage);
     }
 
     public static CompletableFuture<UDP.Packet> findValue(DatagramSocket socket,InetSocketAddress destination,byte[] key) throws IOException{
-        byte[] rpcID = new byte[20];
-        new Random().nextBytes(rpcID);
+        DHT.Message<String> findValueMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,DHT.RPCID.generate(),DHT.NODE_ID,"findValue",Arrays.asList(key,Collections.singletonMap("protocolVersion",1)));
 
-        DHT.Message<String> findNodeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,rpcID,DHT.NODE_ID,"findValue",Arrays.asList(key,Collections.singletonMap("protocolVersion",1)));
+        return DHT.sendWithFuture(socket,destination,findValueMessage);
+    }
 
-        return DHT.sendWithFuture(socket,destination,findNodeMessage);
+    public static CompletableFuture<UDP.Packet> store(DatagramSocket socket,InetSocketAddress destination) throws IOException{
+        DHT.Message<String> storeMessage = new DHT.Message<>(DHT.Message.TYPE_REQUEST,DHT.RPCID.generate(),DHT.NODE_ID,"store");
+
+        return DHT.sendWithFuture(socket,destination,storeMessage);
     }
 
     protected static CompletableFuture<UDP.Packet> sendWithFuture(DatagramSocket socket,InetSocketAddress destination, DHT.Message<?> message) throws IOException{
@@ -144,12 +141,12 @@ public class DHT{
         private DHT.Message<P> setFromBencode(byte[] data){
             Map<String,?> dictionary = BencodeConverter.decode(data);
             this.type = ((Long) dictionary.get("0")).intValue();
-            this.rpcID = ((ByteBuffer) dictionary.get("1")).array();
-            this.nodeID = ((ByteBuffer) dictionary.get("2")).array();
+            this.rpcID = (byte[]) dictionary.get("1");
+            this.nodeID = (byte[]) dictionary.get("2");
             this.payload = null;
             if(dictionary.containsKey("3")){
                 Object payload = dictionary.get("3");
-                this.payload = BencodeConverter.walkAndConvertByteBufferToByteArrayOrString(payload);
+                this.payload = (P) payload;
             }
             this.arguments = null;
             if(dictionary.containsKey("4")){
@@ -173,6 +170,24 @@ public class DHT{
             return new Message<>().setFromBencode(data);
         }
 
+    }
+
+    public static void startReceiver(){
+        new Thread(() -> {
+            while(DHT.getSocket().isBound()) {
+                try {
+                    UDP.Packet receiverPacket = UDP.receive(DHT.getSocket());
+
+                    byte[] receivingBytes = receiverPacket.getData();
+
+                    DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+                    DHT.RPCID rpcid = new DHT.RPCID(message);
+                    DHT.getFutureManager().finishFuture(rpcid,receiverPacket);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"DHT Receiver").start();
     }
 
     public static class RPCID{
@@ -206,6 +221,12 @@ public class DHT{
             return "RPCID{" +
                     "id=" + Hex.encode(id) +
                     '}';
+        }
+
+        public static byte[] generate(){
+            byte[] rpcID = new byte[20];
+            new Random().nextBytes(rpcID);
+            return rpcID;
         }
 
     }

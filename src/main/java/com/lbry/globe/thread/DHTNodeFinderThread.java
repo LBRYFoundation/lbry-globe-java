@@ -38,7 +38,7 @@ public class DHTNodeFinderThread implements Runnable{
         }
 
         this.startSender();
-        this.startReceiver();
+        DHT.startReceiver();
     }
 
     private void startSender(){
@@ -118,24 +118,6 @@ public class DHTNodeFinderThread implements Runnable{
                 }
             }
         }).exceptionally((Throwable e) -> null);
-    }
-
-    private void startReceiver(){
-        new Thread(() -> {
-            while(DHT.getSocket().isBound()) {
-                try {
-                    UDP.Packet receiverPacket = UDP.receive(DHT.getSocket());
-
-                    byte[] receivingBytes = receiverPacket.getData();
-
-                    DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
-                    DHT.RPCID rpcid = new DHT.RPCID(message);
-                    DHT.getFutureManager().finishFuture(rpcid,receiverPacket);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        },"DHT Receiver").start();
     }
 
 }
