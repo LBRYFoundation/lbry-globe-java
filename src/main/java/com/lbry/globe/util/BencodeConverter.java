@@ -23,7 +23,7 @@ public class BencodeConverter{
         List<Object> list = BencodeConverter.BENCODE.decode(bytes,Type.LIST);
         for(int i=0;i<list.size();i++){
             if(i%2==0){
-                list.set(i,String.valueOf(list.get(i)));
+                list.set(i,BencodeConverter.walkAndConvertByteBufferToByteArrayOrString((list.get(i))));
             }
         }
         bytes = BencodeConverter.BENCODE.encode(list);
