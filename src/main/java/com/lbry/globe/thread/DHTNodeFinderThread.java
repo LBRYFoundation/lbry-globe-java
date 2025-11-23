@@ -1,6 +1,8 @@
 package com.lbry.globe.thread;
 
 import com.lbry.globe.api.API;
+import com.lbry.globe.kademlia.KademliaBucket;
+import com.lbry.globe.kademlia.KademliaTriple;
 import com.lbry.globe.object.Node;
 import com.lbry.globe.object.Service;
 import com.lbry.globe.util.DHT;
@@ -18,6 +20,9 @@ import org.json.JSONObject;
 
 public class DHTNodeFinderThread implements Runnable{
 
+    // Using just a single bucket is wrong, but easy for now.
+    private static final KademliaBucket SINGLE_BUCKET = DHT.KADEMLIA.getBucket(0);
+
     public static final String[] BOOTSTRAP = {
             "dht.lbry.grin.io:4444",		// Grin
             "dht.lbry.madiator.com:4444",	// Madiator
@@ -27,14 +32,22 @@ public class DHTNodeFinderThread implements Runnable{
             "lbrynet3.lbry.com:4444",		// EU
             "lbrynet4.lbry.com:4444",		// ASIA
             "dht.lizard.technology:4444",	// Jack
-            "s2.lbry.network:4444",
+            "s2.lbry.network:4444",         // LBRY Foundation
     };
 
     @Override
     public void run(){
         for(String bootstrap : DHTNodeFinderThread.BOOTSTRAP){
             URI uri = URI.create("udp://"+bootstrap);
-            DHT.getPeers().put(new InetSocketAddress(uri.getHost(),uri.getPort()),true);
+            try{
+                DHT.ping(DHT.getSocket(),new InetSocketAddress(uri.getHost(),uri.getPort())).thenAccept((UDP.Packet packet) -> {
+                    byte[] receivingBytes = packet.getData();
+                    DHT.Message<?> message = DHT.Message.fromBencode(receivingBytes);
+                    SINGLE_BUCKET.insertAtTail(new KademliaTriple(packet.getAddress().getAddress(),packet.getAddress().getPort(),message.getNodeID()));
+                }).exceptionally((Throwable e) -> null);
+            }catch(Exception e){
+                System.out.println("Failed bootstrap ping");
+            }
         }
 
         this.startSender();
@@ -45,12 +58,10 @@ public class DHTNodeFinderThread implements Runnable{
         Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("DHT Sender")).scheduleWithFixedDelay(() -> {
             System.out.println("[DHT] BULK PING");
             API.saveNodes();
-            for(InetSocketAddress socketAddress : DHT.getPeers().keySet()){
-                String hostname = socketAddress.getHostName();
-                int port = socketAddress.getPort();
+            for(KademliaTriple triple : SINGLE_BUCKET.getList()){
                 try{
-                    for(InetAddress ip : InetAddress.getAllByName(hostname)){
-                        InetSocketAddress destination = new InetSocketAddress(ip,port);
+                    for(InetAddress ip : InetAddress.getAllByName(triple.getIPAddress().getHostName())){
+                        InetSocketAddress destination = new InetSocketAddress(ip,triple.getUDPPort());
                         this.doPing(destination);
                     }
                 }catch(Exception e){
@@ -107,14 +118,18 @@ public class DHTNodeFinderThread implements Runnable{
             for(List<Object> n : nodes){
                 String hostname = (String) n.get(1);
                 int port = (int) ((long) n.get(2));
-                InetSocketAddress existingSocketAddr = null;
-                for(InetSocketAddress addr : DHT.getPeers().keySet()){
-                    if(addr.getHostName().equals(hostname) && addr.getPort()==port){
-                        existingSocketAddr = addr;
+                KademliaTriple existingTriple = null;
+                for(KademliaTriple triple : SINGLE_BUCKET.getList()){
+                    if(triple.getIPAddress().getHostName().equals(hostname) && triple.getUDPPort()==port){
+                        existingTriple = triple;
                     }
                 }
-                if(existingSocketAddr==null){
-                    DHT.getPeers().put(new InetSocketAddress(hostname,port),false);
+                if(existingTriple==null){
+                    try{
+                        SINGLE_BUCKET.insertAtTail(new KademliaTriple(InetAddress.getByName(hostname),port,message.getNodeID()));
+                    }catch(Exception e){
+                        e.printStackTrace();
+                    }
                 }
             }
         }).exceptionally((Throwable e) -> null);

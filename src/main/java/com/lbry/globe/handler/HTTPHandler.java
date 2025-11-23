@@ -3,6 +3,8 @@ package com.lbry.globe.handler;
 import com.lbry.globe.Main;
 import com.lbry.globe.api.API;
 
+import com.lbry.globe.kademlia.KademliaBucket;
+import com.lbry.globe.kademlia.KademliaTriple;
 import com.lbry.globe.util.DHT;
 import com.lbry.globe.util.Hex;
 import com.lbry.globe.util.TimeoutFutureManager;
@@ -99,19 +101,21 @@ public class HTTPHandler extends ChannelInboundHandlerAdapter{
                     //STORE IS NOT SUPPORTED
                     json.put("query",queryParts);
 
-                    Map<InetSocketAddress,Boolean> peers = DHT.getPeers();
-                    CompletableFuture<UDP.Packet>[] futures = new CompletableFuture[peers.size()];
+                    // Using just a single bucket is wrong, but easy for now.
+                    KademliaBucket SINGLE_BUCKET = DHT.KADEMLIA.getBucket(0);
+
+                    CompletableFuture<UDP.Packet>[] futures = new CompletableFuture[SINGLE_BUCKET.size()];
                     int i=0;
-                    for(Map.Entry<InetSocketAddress,Boolean> entry : peers.entrySet()){
+                    for(KademliaTriple triple : SINGLE_BUCKET.getList()){
                         try{
                             if("ping".equals(queryParts[0])){
-                                futures[i] = DHT.ping(DHT.getSocket(),entry.getKey());
+                                futures[i] = DHT.ping(DHT.getSocket(),triple.getInetSocketAddress());
                             }
                             if("findNode".equals(queryParts[0])){
-                                futures[i] = DHT.findNode(DHT.getSocket(),entry.getKey(),queryParts.length>=2?Hex.decode(queryParts[1]):new byte[48]);
+                                futures[i] = DHT.findNode(DHT.getSocket(),triple.getInetSocketAddress(),queryParts.length>=2?Hex.decode(queryParts[1]):new byte[48]);
                             }
                             if("findValue".equals(queryParts[0])){
-                                futures[i] = DHT.findValue(DHT.getSocket(),entry.getKey(),queryParts.length>=2?Hex.decode(queryParts[1]):new byte[48]);
+                                futures[i] = DHT.findValue(DHT.getSocket(),triple.getInetSocketAddress(),queryParts.length>=2?Hex.decode(queryParts[1]):new byte[48]);
                             }
                         }catch(IOException ignored){}
                         i++;

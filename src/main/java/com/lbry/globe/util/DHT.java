@@ -1,20 +1,22 @@
 package com.lbry.globe.util;
 
+import com.lbry.globe.kademlia.KademliaSystem;
+
 import java.io.IOException;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
-import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
 public class DHT{
 
+    public static KademliaSystem KADEMLIA = new KademliaSystem(5,8 /*We make k big, so buckets will not overflow*/ * 10000,384);
+
     public static byte[] NODE_ID = new byte[48];
 
     private static final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("Timeout Future"));
     private static final TimeoutFutureManager<RPCID,UDP.Packet> futureManager = new TimeoutFutureManager<>(executor);
-    private static final Map<InetSocketAddress,Boolean> peers = new ConcurrentHashMap<>();
     private static final DatagramSocket socket;
 
     static{
@@ -31,10 +33,6 @@ public class DHT{
 
     public static DatagramSocket getSocket(){
         return DHT.socket;
-    }
-
-    public static Map<InetSocketAddress,Boolean> getPeers(){
-        return DHT.peers;
     }
 
     public static CompletableFuture<UDP.Packet> ping(DatagramSocket socket,InetSocketAddress destination) throws IOException {
